@@ -104,10 +104,11 @@ const Teams: React.FC = () => {
             const matchCount = getMatchesByTeam(team.id).length;
 
             return (
-              <div
+              <Link
                 key={team.id}
+                to={`/teams/${team.id}`}
                 className={cn(
-                  "relative p-4 rounded-xl border text-center transition-all duration-200 hover:shadow-lg animate-fade-in",
+                  "relative p-4 rounded-xl border text-center transition-all duration-200 hover:shadow-lg hover:scale-[1.02] animate-fade-in block",
                   team.isConfirmed
                     ? "bg-card border-border hover:border-primary/50"
                     : "bg-card/50 border-dashed border-primary/30"
@@ -128,7 +129,7 @@ const Teams: React.FC = () => {
                 )}
                 <h3 className="font-medium text-sm mb-1">{team.name}</h3>
                 <span className="text-xs text-muted-foreground block mb-2">{team.code}</span>
-                
+
                 <div className="flex items-center justify-center gap-1 text-xs">
                   <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground">
                     {team.confederation}
@@ -142,14 +143,11 @@ const Teams: React.FC = () => {
                 )}
 
                 {matchCount > 0 && (
-                  <Link
-                    to={`/matches?team=${team.id}`}
-                    className="block mt-2 text-xs text-primary hover:underline"
-                  >
-                    {matchCount} jogos →
-                  </Link>
+                  <span className="block mt-2 text-xs text-muted-foreground">
+                    {matchCount} jogos
+                  </span>
                 )}
-              </div>
+              </Link>
             );
           })}
         </div>

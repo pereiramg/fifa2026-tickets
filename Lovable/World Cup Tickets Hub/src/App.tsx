@@ -12,6 +12,7 @@ import MatchDetail from "./pages/MatchDetail";
 import Stadiums from "./pages/Stadiums";
 import StadiumDetail from "./pages/StadiumDetail";
 import Teams from "./pages/Teams";
+import TeamDetail from "./pages/TeamDetail";
 import Groups from "./pages/Groups";
 import Standings from "./pages/Standings";
 import Qualified from "./pages/Qualified";
@@ -58,6 +59,7 @@ const App = () => (
               <Route path="/stadiums" element={<Layout><Stadiums /></Layout>} />
               <Route path="/stadiums/:id" element={<Layout><StadiumDetail /></Layout>} />
               <Route path="/teams" element={<Layout><Teams /></Layout>} />
+              <Route path="/teams/:id" element={<Layout><TeamDetail /></Layout>} />
               <Route path="/groups" element={<Layout><Groups /></Layout>} />
               <Route path="/standings" element={<Layout><Standings /></Layout>} />
               <Route path="/qualified" element={<Layout><Qualified /></Layout>} />

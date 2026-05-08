@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Trophy, Medal, Users, Globe, Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -231,9 +232,10 @@ const Qualified: React.FC = () => {
           {/* Teams Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTeams.map((team, index) => (
-              <div
+              <Link
                 key={team.id}
-                className="glass-card p-4 hover:scale-[1.02] transition-all duration-300 animate-fade-in"
+                to={`/teams/${team.id}`}
+                className="glass-card p-4 hover:scale-[1.02] hover:border-primary/50 transition-all duration-300 animate-fade-in block"
                 style={{ animationDelay: `${index * 30}ms` }}
               >
                 <div className="flex items-start gap-4">
@@ -280,7 +282,7 @@ const Qualified: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 
