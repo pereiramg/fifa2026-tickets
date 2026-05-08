@@ -37,6 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
+import PaginationBar from '@/components/admin/PaginationBar';
 
 interface Sale {
   id: number;
@@ -75,6 +76,7 @@ interface Stats {
 
 const AdminSales: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 15, total: 0, totalPages: 0 });
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,23 +85,40 @@ const AdminSales: React.FC = () => {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const { toast } = useToast();
 
+  // Debounce de busca
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset para página 1 ao mudar filtros
+  useEffect(() => {
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, [debouncedSearch, statusFilter]);
+
   useEffect(() => {
     loadData();
-  }, [statusFilter]);
+  }, [pagination.page, pagination.pageSize, debouncedSearch, statusFilter]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
 
     const [salesRes, statsRes] = await Promise.all([
-      api.getSales({ status: statusFilter !== 'all' ? statusFilter : undefined }),
-      api.getAdminStats(),
+      api.getSales({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: debouncedSearch || undefined,
+      }),
+      // Stats só carrega 1x na sessão (cache do react-query no statsRes evita refetch)
+      stats ? Promise.resolve({ data: { stats } }) : api.getAdminStats(),
     ]);
 
-    const errMsg = salesRes.error || statsRes.error;
+    const errMsg = salesRes.error || (statsRes as any).error;
     if (errMsg) {
       setSales([]);
-      setStats(null);
       setError(errMsg);
       toast({ title: 'Erro', description: errMsg, variant: 'destructive' });
       setLoading(false);
@@ -107,18 +126,19 @@ const AdminSales: React.FC = () => {
     }
 
     setSales(salesRes.data?.sales ?? []);
-    setStats(statsRes.data?.stats ?? null);
+    if (salesRes.data?.pagination) {
+      setPagination((p) => ({
+        ...p,
+        total: salesRes.data!.pagination!.total,
+        totalPages: salesRes.data!.pagination!.totalPages,
+      }));
+    }
+    if ((statsRes as any).data?.stats) setStats((statsRes as any).data.stats);
     setLoading(false);
   };
 
-  const filteredSales = sales.filter((sale) => {
-    const matchesSearch =
-      sale.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-      sale.home_team?.toLowerCase().includes(search.toLowerCase()) ||
-      sale.away_team?.toLowerCase().includes(search.toLowerCase()) ||
-      sale.id.toString().includes(search);
-    return matchesSearch;
-  });
+  // Filtragem agora é server-side
+  const filteredSales = sales;
 
   const handleExport = () => {
     const csvContent = [
@@ -161,7 +181,8 @@ const AdminSales: React.FC = () => {
     }
   };
 
-  if (loading) {
+  // Initial mount loading: só mostra fullscreen spinner se ainda não temos stats nem sales
+  if (loading && !stats && sales.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -199,7 +220,7 @@ const AdminSales: React.FC = () => {
         <div>
           <h1 className="font-display text-3xl">Relatório de Vendas</h1>
           <p className="text-muted-foreground">
-            {filteredSales.length} transações encontradas
+            {pagination.total.toLocaleString('pt-BR')} transações encontradas
           </p>
         </div>
         <Button variant="outline" onClick={handleExport}>
@@ -343,6 +364,18 @@ const AdminSales: React.FC = () => {
             )}
           </TableBody>
         </Table>
+
+        <PaginationBar
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          totalPages={pagination.totalPages}
+          onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
+          onPageSizeChange={(size) =>
+            setPagination((prev) => ({ ...prev, pageSize: size, page: 1 }))
+          }
+          itemLabel="vendas"
+        />
       </div>
 
       {/* Dialog de Detalhes */}

@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
+import PaginationBar from '@/components/admin/PaginationBar';
 
 interface UserData {
   id: number;
@@ -47,21 +48,53 @@ interface UserData {
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<UserData[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 15, total: 0, totalPages: 0 });
+  const [totalAdmins, setTotalAdmins] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const { toast } = useToast();
 
+  // Debounce de busca: aguarda 400ms antes de fazer fetch
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset para página 1 ao mudar filtros
+  useEffect(() => {
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, [debouncedSearch, roleFilter]);
+
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [pagination.page, pagination.pageSize, debouncedSearch, roleFilter]);
 
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const result = await api.getUsers();
+      const result = await api.getUsers({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        search: debouncedSearch,
+        role: roleFilter === 'all' ? undefined : roleFilter,
+      });
       if (result.data?.users) {
         setUsers(result.data.users);
+        if (result.data.pagination) {
+          setPagination((p) => ({
+            ...p,
+            total: result.data!.pagination!.total,
+            totalPages: result.data!.pagination!.totalPages,
+          }));
+          // Conta total de admins (chamada leve, sem paginação)
+          if (totalAdmins === 0 && roleFilter === 'all') {
+            api.getUsers({ page: 1, pageSize: 1, role: 'admin' }).then((r) => {
+              if (r.data?.pagination) setTotalAdmins(r.data.pagination.total);
+            });
+          }
+        }
       }
     } catch (err) {
       toast({ title: 'Erro', description: 'Erro ao carregar usuários', variant: 'destructive' });
@@ -70,13 +103,8 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  // Filtragem agora é server-side; renderiza tudo o que veio
+  const filteredUsers = users;
 
   const handleRoleChange = (userId: number, newRole: string) => {
     toast({
@@ -94,22 +122,13 @@ const AdminUsers: React.FC = () => {
       .slice(0, 2);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Carregando usuários...</span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="font-display text-3xl">Gerenciar Usuários</h1>
         <p className="text-muted-foreground">
-          {filteredUsers.length} usuários cadastrados
+          {pagination.total.toLocaleString('pt-BR')} usuários cadastrados
         </p>
       </div>
 
@@ -121,7 +140,7 @@ const AdminUsers: React.FC = () => {
               <User className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{users.length}</p>
+              <p className="text-2xl font-bold">{pagination.total.toLocaleString('pt-BR')}</p>
               <p className="text-sm text-muted-foreground">Total de Usuários</p>
             </div>
           </div>
@@ -132,9 +151,7 @@ const AdminUsers: React.FC = () => {
               <ShieldCheck className="w-5 h-5 text-gold" />
             </div>
             <div>
-              <p className="text-2xl font-bold">
-                {users.filter((u) => u.role === 'admin').length}
-              </p>
+              <p className="text-2xl font-bold">{totalAdmins}</p>
               <p className="text-sm text-muted-foreground">Administradores</p>
             </div>
           </div>
@@ -167,6 +184,11 @@ const AdminUsers: React.FC = () => {
 
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
+        {loading && (
+          <div className="absolute z-10 bg-background/60 backdrop-blur-sm flex items-center justify-center inset-0 pointer-events-none">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        )}
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -178,6 +200,13 @@ const AdminUsers: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {!loading && filteredUsers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  Nenhum usuário encontrado.
+                </TableCell>
+              </TableRow>
+            )}
             {filteredUsers.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>
@@ -243,6 +272,18 @@ const AdminUsers: React.FC = () => {
             ))}
           </TableBody>
         </Table>
+
+        <PaginationBar
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={pagination.total}
+          totalPages={pagination.totalPages}
+          onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
+          onPageSizeChange={(size) =>
+            setPagination((prev) => ({ ...prev, pageSize: size, page: 1 }))
+          }
+          itemLabel="usuários"
+        />
       </div>
     </div>
   );

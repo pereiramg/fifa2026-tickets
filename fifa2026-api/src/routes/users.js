@@ -97,14 +97,48 @@ router.put('/password', authMiddleware, [
   }
 });
 
-// GET /api/users - Lista usuários (admin only)
+// GET /api/users - Lista usuários paginada (admin only)
+// Query params: page (1-based), pageSize, search, role
 router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await query(
-      'SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC'
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 15));
+    const offset = (page - 1) * pageSize;
+    const search = (req.query.search || '').trim();
+    const role = req.query.role && req.query.role !== 'all' ? req.query.role : null;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    if (search) {
+      whereClause += ` AND (name LIKE @param${params.length} OR email LIKE @param${params.length})`;
+      params.push(`%${search}%`);
+    }
+    if (role) {
+      whereClause += ` AND role = @param${params.length}`;
+      params.push(role);
+    }
+
+    // Total
+    const countResult = await query(
+      `SELECT COUNT(*) AS total FROM users ${whereClause}`,
+      params
+    );
+    const total = countResult.recordset[0].total;
+
+    // Página
+    const rowsResult = await query(
+      `SELECT id, name, email, role, created_at
+         FROM users
+         ${whereClause}
+         ORDER BY created_at DESC
+         OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`,
+      params
     );
 
-    res.json({ users: result.recordset });
+    res.json({
+      users: rowsResult.recordset,
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    });
   } catch (err) {
     console.error('Erro ao buscar usuários:', err);
     res.status(500).json({ error: 'Erro ao buscar usuários' });

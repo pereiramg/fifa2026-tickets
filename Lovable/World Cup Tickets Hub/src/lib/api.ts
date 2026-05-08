@@ -233,8 +233,18 @@ class ApiClient {
   }
 
   // Admin - Users
-  async getUsers() {
-    return this.request<{ users: any[] }>('/users');
+  async getUsers(params?: { page?: number; pageSize?: number; search?: string; role?: string }) {
+    const cleanParams: Record<string, string> = {};
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') cleanParams[k] = String(v);
+      });
+    }
+    const q = Object.keys(cleanParams).length > 0 ? '?' + new URLSearchParams(cleanParams).toString() : '';
+    return this.request<{
+      users: any[];
+      pagination?: { page: number; pageSize: number; total: number; totalPages: number };
+    }>(`/users${q}`);
   }
 
   // Admin - Matches
@@ -279,19 +289,26 @@ class ApiClient {
     });
   }
 
-  // Admin - Sales
-  async getSales(params?: { status?: string; start_date?: string; end_date?: string }) {
-    // Remove undefined values to prevent "undefined" string in query
+  // Admin - Sales (paginated)
+  async getSales(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+  }) {
     const cleanParams: Record<string, string> = {};
     if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          cleanParams[key] = value;
-        }
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') cleanParams[k] = String(v);
       });
     }
-    const query = Object.keys(cleanParams).length > 0 ? '?' + new URLSearchParams(cleanParams).toString() : '';
-    return this.request<{ sales: any[] }>(`/admin/sales${query}`);
+    const q = Object.keys(cleanParams).length > 0 ? '?' + new URLSearchParams(cleanParams).toString() : '';
+    return this.request<{
+      sales: any[];
+      pagination?: { page: number; pageSize: number; total: number; totalPages: number };
+    }>(`/admin/sales${q}`);
   }
 
   async getSale(id: number) {
